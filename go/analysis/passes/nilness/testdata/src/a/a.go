@@ -89,3 +89,30 @@ func i(*int) error {
 		}
 	}
 }
+
+func f4(x, y *X) {
+	if x == nil {
+		panic(x) // want "panic with nil value"
+	}
+}
+
+func f5(x *X) {
+	if x != nil {
+		print(0)
+	}
+	panic(nil) // want "panic with nil value"
+}
+
+func f6() {
+	x, err := bad()
+	if err != nil {
+		panic(0)
+	}
+	if x == nil {
+		panic(err) // want "panic with nil value"
+	}
+}
+
+func bad() (*X, error) {
+	return nil, nil
+}

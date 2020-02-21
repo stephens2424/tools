@@ -117,6 +117,16 @@ func runFunc(pass *analysis.Pass, fn *ssa.Function) {
 			}
 		}
 
+		// Look for panics with nil value
+		for _, instr := range b.Instrs {
+			switch instr := instr.(type) {
+			case *ssa.Panic:
+				if nilnessOf(stack, instr.X) == isnil {
+					reportf("nilpanic", instr.Pos(), "panic with nil value")
+				}
+			}
+		}
+
 		// For nil comparison blocks, report an error if the condition
 		// is degenerate, and push a nilness fact on the stack when
 		// visiting its true and false successor blocks.
@@ -206,6 +216,10 @@ type fact struct {
 	nilness nilness
 }
 
+func (f fact) String() string {
+	return fmt.Sprintf("%v value %v", f.nilness, f.value)
+}
+
 func (f fact) negate() fact { return fact{f.value, -f.nilness} }
 
 type nilness int
@@ -233,10 +247,20 @@ func nilnessOf(stack []fact, v ssa.Value) nilness {
 		*ssa.IndexAddr,
 		*ssa.MakeChan,
 		*ssa.MakeClosure,
-		*ssa.MakeInterface,
 		*ssa.MakeMap,
 		*ssa.MakeSlice:
 		return isnonnil
+	case *ssa.MakeInterface:
+		basedOnValue := nilnessOf(stack, v.X)
+		if basedOnValue != unknown {
+			return basedOnValue
+		}
+	case *ssa.ChangeInterface:
+		basedOnValue := nilnessOf(stack, v.X)
+		if basedOnValue != unknown {
+			return basedOnValue
+		}
+
 	case *ssa.Const:
 		if v.IsNil() {
 			return isnil
